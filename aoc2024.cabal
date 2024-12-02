@@ -50,27 +50,18 @@ extra-doc-files:    CHANGELOG.md
 
 common warnings
     ghc-options: -Wall
-
-executable aoc2024
-    -- Import common warning flags.
-    import:           warnings
-
-    -- .hs or .lhs file containing the Main module.
-    main-is:          Main.hs
-
-    -- Modules included in this executable, other than Main.
+common aoc2024
+    import: warnings
     other-modules:
         Libs.Parse
-
-    -- LANGUAGE extensions used by modules in this package.
-    -- other-extensions:
-
-    -- Other library packages from which modules are imported.
     build-depends:    base ^>=4.17.2.1,
                       text ^>=2.0.2
-
-    -- Directories containing source files.
     hs-source-dirs:   app
-
-    -- Base language which the package is written in.
     default-language: GHC2021
+
+executable day1
+    -- Import common warning flags.
+    import:           aoc2024
+
+    -- .hs or .lhs file containing the Main module.
+    main-is:          Day1.hs
