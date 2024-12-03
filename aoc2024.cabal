@@ -54,15 +54,17 @@ common aoc2024
     import: warnings
     other-modules:
         Libs.Parse
-        Libs.Fold
     build-depends:    base ^>=4.17.2.1,
                       text ^>=2.0.2
     hs-source-dirs:   app
     default-language: GHC2021
 
-executable day1
+executable day01
     import:           aoc2024
-    main-is:          Day1.hs
-executable day2
+    main-is:          Day01.hs
+executable day02
     import:           aoc2024
-    main-is:          Day2.hs
+    main-is:          Day02.hs
+executable day03
+    import:           aoc2024
+    main-is:          Day03.hs

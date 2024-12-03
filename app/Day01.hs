@@ -8,7 +8,7 @@ import Control.Applicative (Alternative(some))
 
 main :: IO ()
 main = do
-  input <- either failShow pure . P.runOnce parser =<< TIO.readFile "input/day1"
+  input <- either failShow pure . P.runOnce parser =<< TIO.readFile "input/day01"
   let xs = sort $ fmap fst input
   let ys = sort $ fmap snd input
   print $ sum . fmap abs $ zipWith subtract xs ys

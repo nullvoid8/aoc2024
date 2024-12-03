@@ -3,7 +3,7 @@
 module Libs.Parse (
   Parser (..),
   char, newline, takeWhile1, spaces, take,
-  decimal, hexadecimal, signed, rational, double, runOnce, sepBy,
+  decimal, hexadecimal, signed, rational, double, runOnce, sepBy, lines, anychar, runOnceIO, skip, text
 ) where
 
 import Control.Applicative (Alternative (..), asum, optional)
@@ -11,7 +11,7 @@ import Data.Functor (void)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Read qualified as TR
-import Prelude hiding (take)
+import Prelude hiding (take, lines)
 
 data Result a = Fail Text | Success Text a (Result a) deriving (Functor, Show)
 
@@ -31,6 +31,11 @@ runOnce :: Parser a -> Text -> Either Text a
 runOnce p t = case runParser p t of
   Fail err -> Left err
   Success _ x _ -> Right x
+
+runOnceIO :: Parser a -> Text -> IO a
+runOnceIO p t = case runOnce p t of
+  Left err -> fail $ show err
+  Right r -> pure r
 
 instance Applicative Parser where
   pure :: a -> Parser a
@@ -60,7 +65,22 @@ failWith msg (P p) = P $ \t -> case p t of
 sepBy :: Parser a -> Parser sep -> Parser [a]
 sepBy p sep = (:) <$> p <*> some (sep *> p) <* optional sep
 
+lines :: Parser a -> Parser [a]
+lines p = p `sepBy` newline
+
+skip :: Parser ()
+skip = P go
+  where
+    go str
+      | T.null str = Success str () $ Fail "EOF"
+      | otherwise =  Success str () $ go (T.tail str)
+
 -- text
+
+anychar :: Parser Char
+anychar = P $ \t -> case T.uncons t of
+  Just (c, t') -> Success t' c $ Fail "anychar"
+  Nothing -> Fail "anychar: unexpected EOF"
 
 char :: Char -> Parser Char
 char c = P $ \t -> case T.uncons t of
@@ -68,6 +88,11 @@ char c = P $ \t -> case T.uncons t of
     | c == x -> Success t' x $ Fail "char"
     | otherwise -> Fail $ "expected '" <> T.pack (show c) <> "' got EOF" <> T.pack (show x) <> "'"
   _ -> Fail $ "expected '" <> T.pack (show c) <> "' got EOF"
+
+text :: Text -> Parser Text
+text prefix = P $ \t -> case T.stripPrefix prefix t of
+  Nothing -> Fail $ "expected prefix '" <> prefix <> "' got '" <> T.take (T.length prefix) t <> "'"
+  Just rest -> Success rest prefix $ Fail "prefix"
 
 newline :: Parser ()
 newline = void $ char '\n'

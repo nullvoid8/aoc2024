@@ -8,7 +8,7 @@ import Data.List (inits, tails)
 
 main :: IO ()
 main = do
-  input <- either failShow pure . P.runOnce parser =<< TIO.readFile "input/day2"
+  input <- either failShow pure . P.runOnce parser =<< TIO.readFile "input/day02"
   print input
   print $ part1 input
   print $ part2 input
