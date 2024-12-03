@@ -33,6 +33,6 @@ parser :: P.Parser [Instruction]
 parser = optional P.skip *> instruction `P.sepBy` P.skip
   where
     instruction = asum [mul, doo, dont]
-    mul = Mul <$ P.text "mul(" <*> P.decimal <* P.char ',' <*> P.decimal <* P.char ')'
+    mul = Mul <$ P.text "mul(" <*> P.limit 3 P.decimal <* P.char ',' <*> P.limit 3 P.decimal <* P.char ')'
     doo = Do <$ P.text "do()"
     dont = Dont <$ P.text "don't()"
