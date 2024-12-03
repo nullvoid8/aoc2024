@@ -1,4 +1,5 @@
 {-# LANGUAGE DerivingStrategies, OverloadedStrings, ScopedTypeVariables #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
 
 module Libs.Parse (
   Parser (..),
@@ -12,32 +13,38 @@ import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Read qualified as TR
 import Prelude hiding (take, lines)
-import Data.Semigroup (Sum (getSum, Sum))
 
-type State = Sum Int
+data State = St !Int !Text deriving Show
 
-getConsumed :: State -> Int
-getConsumed = getSum
+instance Semigroup State where
+  St a _ <> St b t = St (a + b) t
+
+consumed :: State -> Int
+consumed (St c _) = c
+
+rest :: State -> Text
+rest (St _ t) = t
 
 data Result a = 
-  Fail !Text | Success !State !Text !a (Result a) deriving (Functor, Show)
+  Fail !Text | Success !State !a (Result a) deriving (Functor, Show)
 
 instance Semigroup (Result a) where
   (<>) :: Result a -> Result a -> Result a
   Fail xs <> Fail _ = Fail xs
   Fail _ <> xs = xs
-  Success d t x l <> r = Success d t x $ l <> r
+  Success s x l <> r = Success s x $ l <> r
 
--- instance Monoid (Result a) where
---   mempty :: Result a
---   mempty = Fail "mempty"
+mergeState :: State -> Result a -> Result a
+mergeState st = go where
+  go (Success st' a r) = Success (st <> st') a $ go r
+  go x = x
 
 newtype Parser a = P {runParser :: Text -> Result a} deriving (Functor)
 
 runOnce :: Parser a -> Text -> Either Text a
 runOnce p t = case runParser p t of
   Fail err -> Left err
-  Success _ _ x _ -> Right x
+  Success _ x _ -> Right x
 
 runOnceIO :: Parser a -> Text -> IO a
 runOnceIO p t = case runOnce p t of
@@ -46,19 +53,14 @@ runOnceIO p t = case runOnce p t of
 
 instance Applicative Parser where
   pure :: a -> Parser a
-  pure x = P $ \t -> Success 0 t x $ Fail "pure"
+  pure x = P $ \t -> Success (St 0 t) x $ Fail "pure"
 
   (<*>) :: forall a b. Parser (a -> b) -> Parser a -> Parser b
   pf <*> px = P $ \t -> go $ runParser pf t
     where
       go :: Result (a -> b) -> Result b
       go (Fail err) = Fail err
-      go (Success d t f fs) = (f <$> withState d (runParser px t)) <> go fs
-
-      withState :: State -> Result c -> Result c
-      withState s (Success d t x r) = Success (s <> d) t x $ withState s r
-      withState _ x = x
-
+      go (Success st f fs) = (f <$> mergeState st (runParser px $ rest st)) <> go fs
 
 instance Alternative Parser where
   empty :: Parser a
@@ -83,16 +85,16 @@ lines p = p `sepBy` newline
 skip :: Parser ()
 skip = P $ go 0
   where
-    go :: Sum Int -> Text -> Result ()
+    go :: Int -> Text -> Result ()
     go !l str
-      | T.null str = Success l str () $ Fail "EOF"
-      | otherwise =  Success l str () $ go (l+1) (T.tail str)
+      | T.null str = Success (St l str) () $ Fail "EOF"
+      | otherwise =  Success (St l str) () $ go (l+1) (T.tail str)
 
 limit :: Int -> Parser a -> Parser a
 limit l p = P $ go . runParser p where
   go :: Result a -> Result a
-  go (Success d t x r)
-    | getConsumed d <= l = Success d t x $ go r
+  go (Success st x r)
+    | consumed st <= l = Success st x $ go r
     | otherwise = go r
   go x = x
 
@@ -100,33 +102,33 @@ limit l p = P $ go . runParser p where
 
 anychar :: Parser Char
 anychar = P $ \t -> case T.uncons t of
-  Just (c, t') -> Success 1 t' c $ Fail "anychar"
+  Just (c, t') -> Success (St 1 t') c $ Fail "anychar"
   Nothing -> Fail "anychar: unexpected EOF"
 
 char :: Char -> Parser Char
 char c = P $ \t -> case T.uncons t of
   Just (x, t')
-    | c == x -> Success 1 t' x $ Fail "char"
+    | c == x -> Success (St 1 t') x $ Fail "char"
     | otherwise -> Fail $ "expected '" <> T.pack (show c) <> "' got EOF" <> T.pack (show x) <> "'"
   _ -> Fail $ "expected '" <> T.pack (show c) <> "' got EOF"
 
 text :: Text -> Parser Text
 text prefix = P $ \t -> case T.stripPrefix prefix t of
   Nothing -> Fail $ "expected prefix '" <> prefix <> "' got '" <> T.take (T.length prefix) t <> "'"
-  Just rest -> Success (Sum $ T.length prefix) rest prefix $ Fail "prefix"
+  Just rest -> Success (St (T.length prefix) rest) prefix $ Fail "prefix"
 
 newline :: Parser ()
 newline = void $ char '\n'
 
 liftTextPair :: (Text -> (Text, Text)) -> Parser Text
 liftTextPair f = P $ \t -> case f t of
-  (l, r) -> Success (Sum $ T.length l) r l $ Fail "liftTextPair"
+  (l, r) -> Success (St (T.length l) r) l $ Fail "liftTextPair"
 
 liftTextPair1 :: (Text -> (Text, Text)) -> Parser Text
 liftTextPair1 f = P $ \t -> case f t of
   (l, r)
     | T.null l -> Fail "liftTextPair1"
-    | otherwise -> Success  (Sum $ T.length l) r l $ Fail "liftTextPair1"
+    | otherwise -> Success (St (T.length l) r) l $ Fail "liftTextPair1"
 
 takeWhile1 :: (Char -> Bool) -> Parser Text
 takeWhile1 p = failWith "takeWhile1"$ liftTextPair1 $ T.span p
@@ -142,7 +144,7 @@ take i = liftTextPair $ T.splitAt i
 liftTextReader :: TR.Reader a -> Parser a
 liftTextReader r = P $ \t -> case r t of
   Left err -> Fail $ T.pack err
-  Right (x, t') -> Success  (Sum $ T.length t - T.length t') t' x $ Fail "liftTextReader"
+  Right (x, t') -> Success (St (T.length t - T.length t') t') x $ Fail "liftTextReader"
 
 decimal :: (Integral a) => Parser a
 decimal = liftTextReader TR.decimal
