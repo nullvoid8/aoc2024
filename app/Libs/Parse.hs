@@ -3,10 +3,10 @@
 module Libs.Parse (
   Parser (..),
   char, newline, takeWhile1, spaces, take,
-  decimal, hexadecimal, signed, rational, double, runOnce,
+  decimal, hexadecimal, signed, rational, double, runOnce, sepBy,
 ) where
 
-import Control.Applicative (Alternative (..), asum)
+import Control.Applicative (Alternative (..), asum, optional)
 import Data.Functor (void)
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -35,7 +35,7 @@ runOnce p t = case runParser p t of
 instance Applicative Parser where
   pure :: a -> Parser a
   pure x = P $ \t -> Success t x $ Fail "pure"
-  
+
   (<*>) :: forall a b. Parser (a -> b) -> Parser a -> Parser b
   pf <*> px = P $ \t -> go $ runParser pf t
     where
@@ -46,7 +46,7 @@ instance Applicative Parser where
 instance Alternative Parser where
   empty :: Parser a
   empty = P $ const $ Fail "empty"
-  
+
   (<|>) :: Parser a -> Parser a -> Parser a
   pa <|> pb = P $ \t -> runParser pa t <> runParser pb t
 
@@ -56,6 +56,9 @@ failWith :: Text -> Parser a -> Parser a
 failWith msg (P p) = P $ \t -> case p t of
   (Fail _) -> Fail msg
   rs -> rs
+
+sepBy :: Parser a -> Parser sep -> Parser [a]
+sepBy p sep = (:) <$> p <*> some (sep *> p) <* optional sep
 
 -- text
 
