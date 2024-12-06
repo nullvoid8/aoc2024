@@ -25,7 +25,7 @@ consumed (St c _) = c
 rest :: State -> Text
 rest (St _ t) = t
 
-data Result a = 
+data Result a =
   Fail !Text | Success !State !a (Result a) deriving (Functor, Show)
 
 instance Semigroup (Result a) where
@@ -68,6 +68,13 @@ instance Alternative Parser where
 
   (<|>) :: Parser a -> Parser a -> Parser a
   pa <|> pb = P $ \t -> runParser pa t <> runParser pb t
+
+instance Monad Parser where
+  (>>=) :: Parser a -> (a -> Parser b) -> Parser b
+  pa >>= f = P $ \t -> go $ runParser pa t  where
+    go (Success s x r) = mergeState s (runParser (f x) (rest s)) <> go r
+    go (Fail err) = Fail err
+
 
 -- combinators
 
