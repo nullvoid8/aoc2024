@@ -78,3 +78,6 @@ executable day05
 executable day06
     import:           aoc2024
     main-is:          Day06.hs
+executable day07
+    import:           aoc2024
+    main-is:          Day07.hs
