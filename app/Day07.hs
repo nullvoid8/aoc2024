@@ -5,7 +5,7 @@ module Main where
 import Libs.Parse (Parser)
 import Libs.Parse qualified as P
 import Data.Text.IO qualified as TIO
-import Data.Maybe (catMaybes, mapMaybe)
+import Data.Maybe (mapMaybe)
 
 main :: IO ()
 main = do
