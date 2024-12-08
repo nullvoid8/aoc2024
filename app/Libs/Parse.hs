@@ -4,15 +4,20 @@
 module Libs.Parse (
   Parser (..),
   char, newline, takeWhile1, spaces, take,
-  decimal, hexadecimal, signed, rational, double, runOnce, sepBy, lines, anychar, runOnceIO, skip, text, limit
+  decimal, hexadecimal, signed, rational, double, runOnce, sepBy, lines, anychar, runOnceIO, skip, text, limit, grid, satisfies
 ) where
 
-import Control.Applicative (Alternative (..), asum, optional)
+import Control.Applicative (Alternative (..), optional)
 import Data.Functor (void)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Read qualified as TR
 import Prelude hiding (take, lines)
+import qualified Data.Map as M
+import Libs.V2 ( V2(..) )
+import Data.Foldable
+import Data.Semigroup (Min (..), Max (..))
+import Data.Coerce (coerce)
 
 data State = St !Int !Text deriving Show
 
@@ -105,6 +110,13 @@ limit l p = P $ go . runParser p where
     | otherwise = go r
   go x = x
 
+grid :: forall row a. Parser row -> Parser (Maybe a) -> Parser (V2 Int, V2 Int, M.Map (V2 Int) a)
+grid rowSep cell = let
+  singleRow :: Parser (Int -> (V2 (Min Int), V2 (Max Int), M.Map (V2 Int) a))
+  singleRow = fold . zipWith (\ c x r -> let p = V2 c r in  (Min <$> p, Max <$> p, maybe M.empty (M.singleton p) x) ) [0..] <$> some cell
+  wholeGrid :: Parser (V2 Int, V2 Int, M.Map (V2 Int) a)
+  wholeGrid = coerce . fold . zipWith (\r f -> f r) [0..] <$> singleRow `sepBy` rowSep
+  in wholeGrid
 -- text
 
 anychar :: Parser Char
@@ -118,6 +130,13 @@ char c = P $ \t -> case T.uncons t of
     | c == x -> Success (St 1 t') x $ Fail "char"
     | otherwise -> Fail $ "expected '" <> T.pack (show c) <> "' got EOF" <> T.pack (show x) <> "'"
   _ -> Fail $ "expected '" <> T.pack (show c) <> "' got EOF"
+
+satisfies :: (Char -> Bool) -> Parser Char
+satisfies f = P $ \t -> case T.uncons t of
+  Just (x, t')
+    | f x -> Success (St 1 t') x $ Fail "char"
+    | otherwise -> Fail $ "failed to satisfy with '" <> T.singleton x <> "'"
+  _ -> Fail "failed to satisfy with EOF"
 
 text :: Text -> Parser Text
 text prefix = P $ \t -> case T.stripPrefix prefix t of

@@ -53,7 +53,8 @@ common warnings
 common aoc2024
     import: warnings
     other-modules:
-        Libs.Parse
+        Libs.Parse,
+        Libs.V2
     build-depends:    base ^>=4.17.2.1,
                       text ^>=2.0.2,
                       containers ^>= 0.6.7,
@@ -81,3 +82,6 @@ executable day06
 executable day07
     import:           aoc2024
     main-is:          Day07.hs
+executable day08
+    import:           aoc2024
+    main-is:          Day08.hs
