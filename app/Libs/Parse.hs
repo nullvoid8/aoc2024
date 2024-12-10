@@ -4,7 +4,7 @@
 module Libs.Parse (
   Parser (..),
   char, newline, takeWhile1, spaces, take,
-  decimal, hexadecimal, signed, rational, double, runOnce, sepBy, lines, anychar, runOnceIO, skip, text, limit, grid, satisfies
+  decimal, hexadecimal, signed, rational, double, runOnce, sepBy, lines, anychar, runOnceIO, skip, text, limit, grid, satisfies, eof
 ) where
 
 import Control.Applicative (Alternative (..), optional)
@@ -13,11 +13,8 @@ import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Read qualified as TR
 import Prelude hiding (take, lines)
-import qualified Data.Map as M
 import Libs.V2 ( V2(..) )
 import Data.Foldable
-import Data.Semigroup (Min (..), Max (..))
-import Data.Coerce (coerce)
 
 data State = St !Int !Text deriving Show
 
@@ -89,7 +86,7 @@ failWith msg (P p) = P $ \t -> case p t of
   rs -> rs
 
 sepBy :: Parser a -> Parser sep -> Parser [a]
-sepBy p sep = (:) <$> p <*> some (sep *> p) <* optional sep
+sepBy p sep = (:) <$> p <*> many (sep *> p) <* optional sep
 
 lines :: Parser a -> Parser [a]
 lines p = p `sepBy` newline
@@ -110,12 +107,12 @@ limit l p = P $ go . runParser p where
     | otherwise = go r
   go x = x
 
-grid :: forall row a. Parser row -> Parser (Maybe a) -> Parser (V2 Int, V2 Int, M.Map (V2 Int) a)
-grid rowSep cell = let
-  singleRow :: Parser (Int -> (V2 (Min Int), V2 (Max Int), M.Map (V2 Int) a))
-  singleRow = fold . zipWith (\ c x r -> let p = V2 c r in  (Min <$> p, Max <$> p, maybe M.empty (M.singleton p) x) ) [0..] <$> some cell
-  wholeGrid :: Parser (V2 Int, V2 Int, M.Map (V2 Int) a)
-  wholeGrid = coerce . fold . zipWith (\r f -> f r) [0..] <$> singleRow `sepBy` rowSep
+grid :: forall row cell a. Monoid a => Parser row -> Parser cell -> (V2 Int -> cell -> a) -> Parser a
+grid rowSep cell f = let
+  singleRow :: Parser (Int -> a)
+  singleRow = fold . zipWith (\c x r -> f (V2 c r) x) [0..] <$> some cell
+  wholeGrid :: Parser a
+  wholeGrid = fold . zipWith (\r f -> f r) [0..] <$> singleRow `sepBy` rowSep
   in wholeGrid
 -- text
 
@@ -164,6 +161,9 @@ spaces = void (takeWhile1 (== ' '))
 
 take :: Int -> Parser Text
 take i = liftTextPair $ T.splitAt i
+
+eof :: Parser ()
+eof = P $ \t -> if T.null t then Success (St 0 t) () $ Fail "exhausted eof" else Fail "expected eof"
 
 -- numbers
 

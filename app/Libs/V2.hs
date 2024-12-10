@@ -19,8 +19,12 @@ instance Foldable V2 where
   foldMap f (V2 x y) = f x <> f y
 
 instance Traversable V2 where
+  traverse :: Applicative f => (a -> f b) -> V2 a -> f (V2 b)
   traverse f (V2 x y) = V2 <$> f x <*> f y
   sequenceA (V2 x y) = V2 <$> x <*> y
 
 reduce :: V2 Int -> V2 Int
 reduce (V2 x y) = let g = gcd x y in V2 (x `div` g) (y `div` g)
+
+taxi :: V2 Int -> Int
+taxi (V2 x y) = abs x + abs y
