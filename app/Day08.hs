@@ -14,6 +14,8 @@ import Data.Ix (inRange)
 import Data.List (groupBy, sortBy)
 import Data.Ord (comparing)
 import Data.Maybe (catMaybes)
+import Data.Semigroup (Min(..), Max (..))
+import Data.Coerce (coerce)
 
 type Point = V2 Int
 
@@ -30,7 +32,9 @@ main = do
         (groupBy (\x y -> snd x == snd y) . sortBy (comparing snd) . M.toList $ grid)
   
 parser :: Parser (Point, Point, M.Map Point Char)
-parser = P.grid P.newline ((Nothing <$ P.char '.') <|> (Just <$> P.satisfies isAlphaNum))
+parser = coerce $ P.grid P.newline ((Nothing <$ P.char '.') <|> (Just <$> P.satisfies isAlphaNum)) point <* P.eof where
+  point p Nothing = (Min p, Max p, mempty)
+  point p (Just c) = (Min p, Max p, M.singleton p c)
 
 allAntinodesDbl :: (Point, Point) -> [Point] -> S.Set Point
 allAntinodesDbl bounds = go S.empty where
