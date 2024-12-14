@@ -100,3 +100,6 @@ executable day12
 executable day13
     import:           aoc2024
     main-is:          Day13.hs
+executable day14
+    import:           aoc2024
+    main-is:          Day14.hs
