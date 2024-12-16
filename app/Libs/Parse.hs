@@ -4,7 +4,7 @@
 module Libs.Parse (
   Parser (..),
   char, newline, takeWhile1, spaces, take,
-  decimal, hexadecimal, signed, rational, double, runOnce, sepBy, lines, anychar, runOnceIO, skip, text, limit, grid, satisfies, eof
+  decimal, hexadecimal, signed, rational, double, runOnce, sepBy, lines, anychar, runOnceIO, skip, text, limit, grid, satisfies, eof, oneOf
 ) where
 
 import Control.Applicative (Alternative (..), optional)
@@ -15,6 +15,7 @@ import Data.Text.Read qualified as TR
 import Prelude hiding (take, lines)
 import Libs.V2 ( V2(..) )
 import Data.Foldable
+import Data.String (IsString (..))
 
 data State = St !Int !Text deriving Show
 
@@ -77,6 +78,9 @@ instance Monad Parser where
     go (Success s x r) = mergeState s (runParser (f x) (rest s)) <> go r
     go (Fail err) = Fail err
 
+instance IsString (Parser Text) where
+  fromString :: String -> Parser Text
+  fromString = text . T.pack
 
 -- combinators
 
@@ -107,13 +111,6 @@ limit l p = P $ go . runParser p where
     | otherwise = go r
   go x = x
 
-grid :: forall row cell a. Monoid a => Parser row -> Parser cell -> (V2 Int -> cell -> a) -> Parser a
-grid rowSep cell f = let
-  singleRow :: Parser (Int -> a)
-  singleRow = fold . zipWith (\c x r -> f (V2 c r) x) [0..] <$> some cell
-  wholeGrid :: Parser a
-  wholeGrid = fold . zipWith (\r f -> f r) [0..] <$> singleRow `sepBy` rowSep
-  in wholeGrid
 -- text
 
 anychar :: Parser Char
@@ -134,6 +131,11 @@ satisfies f = P $ \t -> case T.uncons t of
     | f x -> Success (St 1 t') x $ Fail "char"
     | otherwise -> Fail $ "failed to satisfy with '" <> T.singleton x <> "'"
   _ -> Fail "failed to satisfy with EOF"
+
+oneOf :: Text -> Parser Char
+oneOf cs = P $ \t -> case T.uncons t of
+  Nothing -> Fail "oneOf: expected char got EOF"
+  Just (c, t') -> if c `T.elem` cs then Success (St 1 t') c $ Fail "oneOf: exhausted" else Fail $ "oneOf: expected one of '" <> cs <> "' got '"<> T.singleton c <>"'"
 
 text :: Text -> Parser Text
 text prefix = P $ \t -> case T.stripPrefix prefix t of
@@ -189,3 +191,13 @@ rational = liftTextReader TR.rational
 
 double :: Parser Double
 double = liftTextReader TR.double
+
+-- grid
+
+grid :: forall row cell a. Monoid a => Parser row -> Parser cell -> (V2 Int -> cell -> a) -> Parser a
+grid rowSep cell f = let
+  singleRow :: Parser (Int -> a)
+  singleRow = fold . zipWith (\c x r -> f (V2 c r) x) [0..] <$> some cell
+  wholeGrid :: Parser a
+  wholeGrid = fold . zipWith (\r f -> f r) [0..] <$> singleRow `sepBy` rowSep
+  in wholeGrid
