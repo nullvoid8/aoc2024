@@ -58,6 +58,7 @@ common aoc2024
     build-depends:    base ^>=4.17.2.1,
                       text ^>=2.0.2,
                       containers ^>= 0.6.7,
+                      transformers ^>= 0.5.6.2,
     hs-source-dirs:   app
     default-language: GHC2021
 
@@ -109,3 +110,6 @@ executable day15
 executable day16
     import:           aoc2024
     main-is:          Day16.hs
+executable day17
+    import:           aoc2024
+    main-is:          Day17.hs
